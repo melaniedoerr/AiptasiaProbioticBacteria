@@ -12,3 +12,5 @@ You can download FASTQ files from the SRA using the `fasterq-dump` tool from the
 # Replace SRRXXXXXXX with your SRA accession
 fasterq-dump SRRXXXXXXX
 ```
+
+Ensure the downloaded sra files are placed in this directory and match the names used in [input.csv](input.csv) for automated processing.
