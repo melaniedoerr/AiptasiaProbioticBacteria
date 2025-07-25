@@ -28,4 +28,7 @@ DADA2_results_NO-RS_MD/
 Isolate_Blast_inverted/
 Isolate_Blast/MD_AllIsolates_blast.*
 Isolate_Blast/*.fasta
+Isolate_Blast/*.fa
+Isolate_Blast/*.gz
+Isolate_Blast/*.clean
 Isolate_Blast/*.txt
