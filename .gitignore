@@ -18,3 +18,13 @@ process_resources.config
 
 # Fastq files
 input/*.fastq.gz
+
+# DADA2 results
+DADA2_results_MD
+DADA2_results_NO-RS_MD/
+
+# extra Blast results and db files
+Isolate_Blast_inverted/
+Isolate_Blast/MD_AllIsolates_blast.*
+Isolate_Blast/*.fasta
+Isolate_Blast/*.txt
