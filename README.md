@@ -4,6 +4,7 @@ This repository contains code and data for the analysis and figure generation su
 **"Engineering Coral Resilience: Functional Testing of Probiotic Bacteria to Increase Thermal Stress Tolerance of the Coral Model Aiptasia"**  
 by [Author Names], published in [Journal Name, Year].  
 DOI: [doi placeholder]
+NCBI BioProject: [PRJNA1297037](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1297037)
 
 ## Contents
 
