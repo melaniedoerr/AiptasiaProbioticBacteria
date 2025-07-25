@@ -1,0 +1,20 @@
+# Nextflow configuration files and directories
+.nextflow*
+.nextflow.log
+.nextflow.trace
+.nextflow.history
+.nextflow.checkpoint
+.nextflow.work
+.nextflow.cache
+.nextflow.reports
+.nextflow.session
+.nextflow.run
+.nextflow.tmp
+nextflow.config
+process_resources.config
+
+# Vscode and IDE specific files
+.vscode/
+
+# Fastq files
+input/*.fastq.gz
