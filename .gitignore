@@ -12,6 +12,7 @@
 .nextflow.tmp
 nextflow.config
 process_resources.config
+work/
 
 # Vscode and IDE specific files
 .vscode/
