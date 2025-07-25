@@ -1,0 +1,20 @@
+{
+    "input": "\/home\/colinl\/Proj\/MD_proj_Aiptasia16S\/input.csv",
+    "FW_primer": "AGGATTAGATACCCTGGTA",
+    "RV_primer": "CRRCACGAGCTGACGAC",
+    "metadata": "\/home\/colinl\/Proj\/MD_proj_Aiptasia16S\/metadata.tsv",
+    "outdir": "DADA2_results_NO-RS_MD",
+    "email": "luigi.colin@uni-konstanz.de",
+    "sample_inference": "pooled",
+    "retain_untrimmed": true,
+    "dada_taxonomy_rc": true,
+    "qiime_ref_taxonomy": "silva=138",
+    "picrust": true,
+    "ancom": true,
+    "ancombc": true,
+    "trunclenf": 210,
+    "trunclenr": 215,
+    "min_frequency": 2,
+    "max_ee":1,
+    "filter_ssu": "bac,arc"
+}
