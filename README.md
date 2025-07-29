@@ -2,7 +2,7 @@
 
 This repository contains code and data for the analysis and figure generation supporting the Ph.D. thesis:
 **"Engineering Coral Resilience: Functional Testing of Probiotic Bacterial Isolates in Aiptasia Under Thermal Stress"**  
-by [Dörr, Melanie], submitted in [2025].  
+by Dörr, Melanie, submitted in 2025.  
 NCBI BioProject: [PRJNA1297037](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA1297037)
 
 ## Contents
