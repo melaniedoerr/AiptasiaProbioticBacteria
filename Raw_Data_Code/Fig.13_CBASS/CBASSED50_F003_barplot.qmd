@@ -1,0 +1,354 @@
+---
+title: "CBASSED50 Demo"
+author: "Yulia Iakovleva, Christian R Voolstra"
+format: html
+editor: visual
+---
+
+# About CBASSED50
+
+CBASSED50 allows you to process CBASS data. To learn more about CBASSED50 see <https://aslopubs.onlinelibrary.wiley.com/doi/10.1002/lom3.10555>.
+
+# Get Started
+
+## Install CBASSED50
+
+You need to execute this chunk only once to get the `CBASSED50` package installed. If there is a new release, please run to update package components.
+
+```{r install-cbassed50, message=FALSE}
+if(!require(devtools)){
+   install.packages("devtools")
+}
+
+devtools::install_github("reefgenomics/CBASSED50@0.1.4", force=TRUE)
+```
+
+## Load Packages
+
+install.packages("dplyr") install.packages("tidyr") install.packages("ggplot2") install.packages("readxl") install.packages("rstudioapi") install.packages("RColorBrewer") install.packages("CBASSED50")
+
+```{r library-packages, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(rstudioapi)
+library(RColorBrewer)
+library(CBASSED50)
+#library(drc)
+```
+
+# Define Data Source
+
+Here you can choose to either run a provided "Internal Dataset" or your own "Custom Dataset". To become familiar with the input file format and check that everything is running smoothly, we suggest to run the "Internal Dataset" first (see below). The internal dataset is also provided in the [`examples`](https://github.com/reefgenomics/CBASSED50/tree/main/examples) folder together with the output files.
+
+## Internal Dataset
+
+The first time you may want to run the code with the dataset that is already provided with the `CBASSED50` package.
+
+If you want to specify your own dataset, go further to the next chunk.
+
+To load the internal dataset, run the following chunk of code:
+
+```{r load-data}
+# To load internal dataset that is provided with the R package
+data("cbass_dataset")
+output_prefix <- "demo"
+# Make sure that dataset is loaded and display several first rows
+head(cbass_dataset)
+```
+
+If you want to know more about our internal dataset, you can call the R documentation:
+
+```{r about-dataset}
+?cbass_dataset
+```
+
+## Custom Dataset
+
+### Requirements for Custom Data
+
+Your data must contain mandatory columns to pass pre-processing and validation steps.
+
+To retrieve the list of mandatory data columns, call the internal `mandatory_columns` function:
+
+```{r get-mandatory-columns}
+mandatory_columns()
+```
+
+Your data shouldn't contain any missing data, otherwise the row with missing values will be discarded.
+
+### Specify Project Directory and Working Environment for Custom Data
+
+If you want to load and analyze your data, run the following chunk of the code.
+
+You don't need to execute the chunk below if you use the internal `cbass_dataset`.
+
+Note, the `selectFile` function from the `rstudioapi` package works only in interactive execution and doesn't work on rendering.
+
+```{r specify-working-directory}
+# Get the input file path
+input_data_path <- selectFile(
+  caption = "Select XLSX or CSV Input File")
+
+# Read data based on file format
+cbass_dataset <- read_data(input_data_path)
+# To specify the prefix for output files
+output_prefix <- tools::file_path_sans_ext(input_data_path)
+
+rlog::log_info(paste("Your current directory is", getwd()))
+rlog::log_info(paste("Your input filename is", basename(input_data_path)))
+rlog::log_info(paste("The output files will be written into", output_prefix))
+```
+
+# Analyze
+
+## Preprocess and Validate Data
+
+Make your data tidy and validate:
+
+```{r process-and-validate-cbass-dataset}
+cbass_dataset <- preprocess_dataset(cbass_dataset)
+validate_cbass_dataset(cbass_dataset)
+```
+
+## Explore ED50
+
+First you need to decide which grouping property you want to use. For example, you want to group by all combinations of values that come from `Site` , `Condition`, `Species`, and `Timepoint` columns as one merged grouping property.
+
+⚠️ Note, you should never use `Genotype` as a grouping property because this column is used as a `curveid` argument for `drm` modeling (see more about it [here](https://doseresponse.github.io/drc/reference/drm.html)).
+
+Create models:
+
+```{r fititng-dose-responce-models, warning=FALSE}
+grouping_properties <- c("Condition", "Species", "Timepoint")
+drm_formula <- "PAM ~ Temperature"
+models <- fit_drms(cbass_dataset, grouping_properties, drm_formula, is_curveid = TRUE)
+```
+
+Get ED50s from models:
+
+```{r get-ed50}
+ed50 <- get_ed50_by_grouping_property(models)
+cbass_dataset <- define_grouping_property(cbass_dataset, grouping_properties) #%>% #comment this line out when genotype set to 1 
+  #mutate(GroupingProperty = paste(GroupingProperty, Genotype, sep = "_")) #comment this line out when genotype set to 1 
+
+ed50_df <- 
+  left_join(ed50, cbass_dataset, by = "GroupingProperty") %>%
+  select(names(ed50), all_of(grouping_properties)) %>%
+  distinct()
+
+error.list <- lapply(c(1:length(models)), function(x) drc::ED(models[[x]], 50))
+
+confidence_df <- 
+  as.data.frame(do.call(rbind, error.list))
+confidence_df$GroupingProperty=unique(cbass_dataset$GroupingProperty)
+
+ed50_df <- 
+  left_join(ed50_df, confidence_df, by = "GroupingProperty")
+ed50_df$Upper <- ed50_df$ED50 + ed50_df$`Std. Error`
+ed50_df$Lower <- ed50_df$ED50 - ed50_df$`Std. Error`
+
+ed50_df <- 
+  select(ed50_df, -c(Estimate))
+  
+head(ed50_df)
+write.csv(ed50_df,
+          paste(output_prefix, "ED50df.csv", sep = '_'),
+          row.names = FALSE)
+
+```
+
+ED50 Barplots:
+
+You can choose colorblind-friendly palettes with `display.brewer.all(colorblindFriendly = T)`.
+
+```{r display-ed50}
+ed50_barplot <- ggplot(
+  ed50_df, aes(x = Condition, y = ED50, fill = Condition)) +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), linewidth = 0.7, width = 0.15, color = "black") +
+  geom_bar(stat = "identity", color = "black", width = 0.75, aes(fill = Condition)) + 
+  stat_summary(
+    fun = mean, 
+    geom = "label", 
+    aes(label = round(after_stat(y), 2)), #fill = Species),
+    position = position_dodge(width = 0.75),
+    vjust = -3.5
+  ) +
+  coord_cartesian(ylim = c(35, 40)) +
+  labs(y= "ED50", x = "Condition") +
+  facet_grid(Species ~ Timepoint) + 
+  scale_fill_brewer(palette = "Set2")
+
+ed50_barplot
+  
+  
+ed50_barplot_mod <- ed50_barplot + 
+  theme (legend.position= "none", 
+  legend.title = element_text(colour="black", size=13,face="bold"),
+  legend.text=element_text(size = 13),
+  line = element_line(linewidth = 0.8),
+  axis.line = element_line(colour = "black"),
+  axis.ticks = element_line(colour = "black"),
+  axis.ticks.length = unit(0.2 , "cm"),
+  axis.text = element_text(size = 13, colour = "black"),
+  text = element_text(size = 13, colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  panel.background = element_blank(),
+  strip.background = element_blank(), 
+  strip.text.x = element_text(color = "black", size = 12, angle = 0, hjust = 0.5, vjust = 0.5, face = "plain"))
+
+ed50_barplot_mod
+
+#ggsave(
+  #paste(output_prefix, "F003ED50_2_Redo_boxplot.pdf", sep = '_'),
+  #ed50_barplot_mod, width = 16, height = 9)
+
+```
+
+## Temperature Response Curve
+
+Before predicting PAM values for plotting, let's explore if everything is fine with each genotype of the dataset:
+
+```{r check-curves-without-curveid, warning=FALSE}
+exploratory_curve <-
+  ggplot(data = cbass_dataset,
+       aes(
+         x = Temperature,
+         y = PAM,
+         # You can play around with the group value (e.g., Species, Site, Condition)
+         group = GroupingProperty,
+         color = Genotype)) +
+  geom_smooth(
+    method = drc::drm,
+    method.args = list(
+      fct = drc::LL.3()),
+    se = FALSE,
+    size = 0.7
+  ) +
+  geom_point(size = 1.5) +
+  facet_grid(Species ~ Timepoint ~ Condition) #+
+  #scale_color_brewer(palette = "Paired") # Colorblind-friendly palette
+
+ggsave(
+  paste(output_prefix, "prelim_temprespcurve.pdf", sep = '_'),
+  exploratory_curve, width = 16, height = 9)
+exploratory_curve
+```
+
+Predict PAM values for assayed temperature range:
+
+```{r predict-PAM-values, warning=FALSE}
+# First fit models without curveid
+models <- fit_drms(cbass_dataset, grouping_properties, drm_formula, is_curveid = FALSE)
+# The default number of values for range of temperatures is 100
+temp_ranges <- define_temperature_ranges(cbass_dataset$Temperature, n=100)
+predictions <- get_predicted_pam_values(models, temp_ranges)
+```
+
+You may get a warning `NaNs produced`. This can happen if PAM values at a higher temperature exceed PAM values at a lower temperature (the model assumes decreasing PAM values with increasing temperatures).
+
+Pre-process data for visualization:
+
+```{r preprocess-pam-predictions}
+predictions_df <- 
+  left_join(predictions,
+            define_grouping_property(cbass_dataset, grouping_properties) %>% 
+              select(c(all_of(grouping_properties), GroupingProperty)),
+            by = "GroupingProperty",
+            relationship = "many-to-many") %>%
+  distinct()
+```
+
+Get ED50 summary statistics for groupings:
+
+```{r get-ed50-means}
+summary_ed50_df <- ed50_df %>%
+  group_by(Condition, Species, Timepoint) %>%
+  summarise(Mean_ED50 = mean(ED50),
+            SD_ED50 = sd(ED50),
+            SE_ED50 = sd(ED50) / sqrt(n()),
+            # The value 0.975 corresponds to the upper tail probability
+            # for a two-tailed t-distribution with a 95% 
+            Conf_Int = qt(0.975, df = n() - 1) * SE_ED50) %>%
+  mutate(across(c(Mean_ED50, SD_ED50, SE_ED50,
+                  Conf_Int), ~round(., 2)))
+
+summary_ed50_df
+write.csv(
+  summary_ed50_df,
+  paste(output_prefix, "summaryED50df.csv", sep = '_'),
+  row.names = FALSE)
+```
+
+Join predictions and ED50 summary data:
+
+```{r join-predicitons-and-mean-ed50}
+result_df <- predictions_df %>%
+  left_join(summary_ed50_df, by = c("Condition", "Species", "Timepoint"))
+```
+
+Plot ED50 curves for groupings:
+
+```{r plot-temperature-responce-curve}
+tempresp_curve <- ggplot(result_df,
+       aes(x = Temperature,
+           y = PredictedPAM,
+           group = GroupingProperty,
+           # You can customize the group here
+           color = Condition)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Upper,
+                  ymax = Lower,
+                  fill = Condition),
+              alpha = 0.2,
+              linetype = "dashed") +
+  geom_segment(aes(x = Mean_ED50,
+                   y = 0,
+                   xend = Mean_ED50,
+                   yend = max(Upper)),
+               linetype = 3) +
+  geom_text(mapping=aes(x = Mean_ED50,
+                        y = max(Upper) + 0.12,
+                        label = round(Mean_ED50, 2)),
+            size = 3, angle = 90, check_overlap = T) +
+  facet_grid(Species ~ Timepoint ~ Condition) +
+  # To add the real PAM and compare with predicted values
+  geom_point(data = cbass_dataset,
+             aes(x = Temperature,
+                 y = PAM)) +
+  scale_y_continuous(expand = c(0, 0.2))
+
+ggsave(
+  paste(output_prefix, "temprespcurve.pdf", sep = '_'),
+  tempresp_curve,
+  width = 16, height = 9)
+tempresp_curve
+```
+
+Curves display the predicted PAM values, the 95% confidence intervals, and mean ED50s for groupings (vertical line).
+
+Now you are ready to interpret your results! :)
+
+# Explore the Output
+
+By the end of this demo you will have 4 output files:
+
+-   `demo_ED50boxplot.pdf`
+
+-   `demo_prelim_temprespcurve.pdf`
+
+-   `demo_temprespcurve.pdf`
+
+-   `demo_ED50df.csv`
+
+-   `demo_summaryED50df.csv`
+
+If you choose to use a custom dataset, please note that the output filenames will start with the input filename, rather than `demo_`. This feature ensures that the output files are easily identifiable and associated with the specific input data provided.
+
+# Cite Us
+
+If you use this software, please cite it as below.
+
+> Yulia Iakovleva & Christian R Voolstra. (2023). CBASSED50: R package to process CBASS-derived PAM data. Zenodo. <https://doi.org/10.5281/zenodo.8370644>.
